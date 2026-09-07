@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎈 歡樂線上抽籤系統 (單機版) 🎈</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/iansui/400.css">
+    <style>
+        @font-face {
+            font-family: 'Iansui-Fallback';
+            src: url('https://cdn.jsdelivr.net/gh/ButTaiwan/iansui@main/fonts/ttf/Iansui-Regular.ttf') format('truetype');
+        }
+        
+        body { 
+            font-family: 'Iansui', 'Iansui-Fallback', 'Comic Sans MS', sans-serif; 
+            font-weight: 400; 
+            background-color: #f0fdf4; 
+            background-image: 
+                radial-gradient(circle at 15% 50%, #fef3c7 5%, transparent 5%),
+                radial-gradient(circle at 85% 30%, #dbeafe 5%, transparent 5%),
+                radial-gradient(circle at 50% 80%, #ffedd5 6%, transparent 6%);
+            background-attachment: fixed;
+        }
+
+        /* 強制全域取消粗體，保持手寫感 */
+        * { font-weight: 400 !important; }
+        
+        @keyframes draw-pulse {
+            0%, 100% { transform: scale(1) rotate(-3deg); box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4); }
+            50% { transform: scale(0.95) rotate(3deg); box-shadow: 0 15px 35px rgba(239, 68, 68, 0.6); }
+        }
+        
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .drawing-active {
+            animation: draw-pulse 0.4s infinite !important;
+            background: linear-gradient(135deg, #f59e0b, #f43f5e) !important;
+            border-color: #fde047 !important;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .kid-card {
+            background-color: white;
+            border: 4px solid #334155;
+            border-radius: 2rem;
+            box-shadow: 6px 6px 0px #94a3b8;
+            transition: all 0.2s ease-in-out;
+        }
+        
+        .kid-btn {
+            border: 3px solid #334155;
+            box-shadow: 4px 4px 0px #334155;
+            transition: all 0.1s;
+        }
+        .kid-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px #334155;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <nav class="bg-white shadow-sm border-b-4 border-slate-700 sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer group" onclick="showView('home')">
+                <span class="text-3xl group-hover:animate-bounce">🎪</span>
+                <h1 class="text-2xl tracking-widest text-pink-500 drop-shadow-sm" style="-webkit-text-stroke: 1px #334155;">歡樂抽籤機</h1>
+            </div>
+            <button id="nav-login-btn" class="kid-btn text-sm text-slate-700 bg-yellow-300 hover:bg-yellow-400 px-4 py-2 rounded-2xl transition-colors">
+                ⚙️ 管理員
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-grow max-w-5xl mx-auto w-full p-4 flex flex-col pt-8 pb-20">
+        
+        <!-- View: Home -->
+        <div id="view-home" class="flex flex-col w-full animate-fade-in">
+            <div class="text-center mb-12 relative">
+                <div class="absolute -top-6 -left-4 text-4xl animate-[bounce-slow_3s_infinite]">☁️</div>
+                <div class="absolute top-4 -right-2 text-4xl animate-[bounce-slow_4s_infinite_reverse]">🪁</div>
+                <h2 class="text-4xl sm:text-5xl text-blue-600 mb-4 drop-shadow-md tracking-wider" style="-webkit-text-stroke: 1px #334155;">點擊大按鈕，試試好手氣！</h2>
+                <p class="text-slate-600 text-lg bg-white inline-block px-4 py-2 rounded-full border-2 border-slate-300 border-dashed">來看看你能抽到什麼好禮物吧 ✨</p>
+            </div>
+
+            <div class="flex justify-center mb-16">
+                <button id="draw-btn" class="w-56 h-56 sm:w-64 sm:h-64 rounded-full bg-gradient-to-br from-red-400 to-rose-600 text-white text-5xl shadow-[0_15px_0_rgba(159,18,57,1)] border-[10px] border-white transition-all hover:-translate-y-2 active:translate-y-4 active:shadow-[0_0px_0_rgba(159,18,57,1)] flex items-center justify-center select-none tracking-widest" style="-webkit-text-stroke: 1.5px #881337;">
+                    抽獎囉!
+                </button>
+            </div>
+
+            <div class="kid-card p-6 sm:p-8 w-full relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-24 h-24 bg-yellow-200 rounded-bl-full opacity-50"></div>
+                
+                <div class="flex justify-between items-center mb-6 z-10 relative flex-wrap gap-4">
+                    <h3 class="text-2xl flex items-center gap-2">
+                        <span class="text-3xl">🎁</span> 
+                        <span class="text-slate-700 tracking-widest">獎品一覽表</span>
+                    </h3>
+                    <!-- 新增：首頁的重新洗牌(重抽)按鈕 -->
+                    <button onclick="document.getElementById('confirm-modal').classList.remove('hidden')" class="kid-btn px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-base flex items-center gap-2">
+                        <span>🔄</span> 重新洗牌
+                    </button>
+                </div>
+
+                <div id="prize-pool" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 relative z-10">
+                    <div class="text-center text-slate-400 py-4 col-span-full">小精靈正在搬運獎品中...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-login" class="hidden flex-col items-center justify-center w-full max-w-md mx-auto pt-10">
+            <div class="kid-card p-8 w-full">
+                <div class="text-5xl text-center mb-4">🔐</div>
+                <h2 class="text-3xl text-center mb-2 text-slate-800 tracking-wider">秘密通道</h2>
+                <p class="text-sm text-slate-500 mb-8 text-center bg-slate-100 py-2 rounded-xl border border-slate-200">提示：admin / admin123</p>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-lg text-slate-700 mb-2">誰在敲門？(帳號)</label>
+                        <input id="login-user" type="text" class="w-full px-4 py-3 rounded-2xl border-4 border-slate-300 focus:border-blue-500 focus:bg-blue-50 outline-none transition-all text-lg text-center tracking-widest" placeholder="輸入帳號">
+                    </div>
+                    <div>
+                        <label class="block text-lg text-slate-700 mb-2">通關密語？(密碼)</label>
+                        <input id="login-pass" type="password" class="w-full px-4 py-3 rounded-2xl border-4 border-slate-300 focus:border-blue-500 focus:bg-blue-50 outline-none transition-all text-lg text-center tracking-widest" placeholder="輸入密碼" onkeypress="if(event.key === 'Enter') handleLogin()">
+                    </div>
+                    <button id="login-btn" onclick="handleLogin()" class="kid-btn w-full py-4 bg-green-500 hover:bg-green-600 text-white text-xl rounded-2xl mt-6 tracking-widest">
+                        開門！
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-admin" class="hidden flex-col w-full gap-8">
+            <div class="flex items-center gap-4">
+                <span class="text-4xl">👑</span>
+                <h2 class="text-4xl text-slate-800 tracking-wider">村長廣播站 <span class="text-xl text-slate-500 tracking-normal">(管理後台)</span></h2>
+            </div>
+            
+            <div class="kid-card overflow-hidden">
+                <div class="p-6 border-b-4 border-slate-200 flex justify-between items-center bg-blue-50 flex-wrap gap-4">
+                    <h3 class="text-2xl text-slate-800 flex items-center gap-2">📦 <span class="border-b-4 border-yellow-400 tracking-widest">設定獎品清單</span></h3>
+                    <button onclick="addPrize()" class="kid-btn px-5 py-2 bg-pink-400 hover:bg-pink-500 text-white text-lg rounded-xl tracking-wider">
+                        + 加個新玩具
+                    </button>
+                </div>
+                <div class="w-full overflow-x-auto no-scrollbar bg-white">
+                    <table class="w-full text-left min-w-[600px]">
+                        <thead class="border-b-4 border-slate-200 bg-slate-50">
+                            <tr>
+                                <th class="p-4 text-slate-600 text-lg w-32 tracking-wider">標籤</th>
+                                <th class="p-4 text-slate-600 text-lg tracking-wider">叫什麼名字？</th>
+                                <th class="p-4 text-slate-600 text-lg w-32 tracking-wider">準備幾個？</th>
+                                <th class="p-4 text-slate-600 text-lg w-28 text-center tracking-wider">送出幾個</th>
+                                <th class="p-4 text-slate-600 text-lg w-28 text-center tracking-wider">動作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-prizes-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-6 bg-slate-50 border-t-4 border-slate-200 flex justify-end">
+                    <button id="save-prizes-btn" onclick="savePrizes()" class="kid-btn px-8 py-3 bg-blue-500 hover:bg-blue-600 text-white text-xl rounded-2xl tracking-widest">
+                        💾 存檔！
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Change Password -->
+                <div class="kid-card p-6 border-b-[6px] border-orange-400">
+                    <h3 class="text-2xl text-slate-800 mb-6 flex items-center gap-2">🔑 <span class="bg-orange-100 px-2 rounded-lg tracking-widest">換個新密語</span></h3>
+                    <div class="space-y-4">
+                        <input id="old-pw" type="password" placeholder="舊的密語" class="w-full px-4 py-3 rounded-xl border-4 border-slate-200 focus:border-orange-400 focus:bg-orange-50 outline-none tracking-widest">
+                        <input id="new-pw" type="password" placeholder="新的密語" class="w-full px-4 py-3 rounded-xl border-4 border-slate-200 focus:border-orange-400 focus:bg-orange-50 outline-none tracking-widest">
+                        <button onclick="changePassword()" class="kid-btn px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white text-lg rounded-xl w-full mt-2 tracking-widest">確定更換</button>
+                    </div>
+                </div>
+
+                <!-- Danger Zone -->
+                <div class="kid-card p-6 border-b-[6px] border-red-500 bg-red-50">
+                    <h3 class="text-2xl text-red-600 mb-2 flex items-center gap-2">⚠️ <span class="bg-red-100 px-2 rounded-lg tracking-widest">大魔王區域</span></h3>
+                    <p class="text-base text-red-800/70 mb-6 bg-white/60 p-3 rounded-xl border-2 border-red-200 border-dashed">按下這個按鈕，所有的抽獎紀錄都會被魔法橡皮擦擦掉，全部重新開始喔！</p>
+                    <button onclick="document.getElementById('confirm-modal').classList.remove('hidden')" class="kid-btn w-full px-4 py-4 bg-red-500 hover:bg-red-600 text-white text-xl rounded-xl tracking-widest">
+                        🧹 全部洗牌重來！
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 中獎畫面 -->
+    <div id="result-modal" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center opacity-0 transition-opacity duration-300">
+        <div class="bg-white p-8 sm:p-10 rounded-[3rem] border-8 border-yellow-400 max-w-sm w-full mx-4 shadow-[10px_10px_0_rgba(0,0,0,0.2)] transform scale-50 transition-all duration-500 flex flex-col items-center relative overflow-hidden" id="result-modal-box">
+            <div class="absolute -top-10 -left-10 w-32 h-32 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
+            <div class="absolute -bottom-10 -right-10 w-32 h-32 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-70"></div>
+            
+            <div id="result-icon" class="text-8xl mb-2 animate-bounce mt-4 relative z-10 drop-shadow-lg">🎉</div>
+            <h3 id="result-text" class="text-3xl sm:text-4xl text-slate-800 text-center mb-8 leading-tight relative z-10 tracking-widest" style="text-shadow: 2px 2px 0px #fcd34d;"></h3>
+            <button onclick="closeModal()" class="kid-btn w-full py-4 bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xl rounded-2xl relative z-10 tracking-wider">
+                太棒了！收下
+            </button>
+        </div>
+    </div>
+
+    <!-- 確認洗牌畫面 -->
+    <div id="confirm-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center">
+        <div class="kid-card p-8 max-w-sm w-full mx-4 border-red-500 border-[6px]">
+            <div class="text-6xl text-center mb-4">😱</div>
+            <h3 class="text-2xl mb-3 text-red-600 text-center tracking-widest">真的要全部擦掉嗎？</h3>
+            <p class="text-slate-600 text-center mb-8 bg-slate-100 p-4 rounded-xl">這會把大家抽到的紀錄都清空，所有獎品數量會變回沒抽過的狀態。擦掉就變不回來囉！</p>
+            <div class="flex flex-col gap-3">
+                <button onclick="confirmReset()" class="kid-btn px-4 py-3 bg-red-500 hover:bg-red-600 text-white text-xl rounded-xl tracking-widest">對，我要重來！</button>
+                <button onclick="document.getElementById('confirm-modal').classList.add('hidden')" class="kid-btn px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xl rounded-xl tracking-widest">不不不，按錯了</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * ==========================================
+         * GitHub Pages 相容：Local Storage 本地資料庫
+         * ==========================================
+         */
+        const DEFAULT_SETTINGS = [{ user: 'admin', pass: 'admin123' }];
+        const DEFAULT_PRIZES = [
+            { id: 'P1', name: '特獎：iPhone 15', limit: 1, drawn: 0 },
+            { id: 'P2', name: '二獎：AirPods Pro', limit: 2, drawn: 0 },
+            { id: 'P3', name: '普獎：100元現金', limit: 10, drawn: 0 }
+        ];
+
+        // 初次進入網頁時建立預設資料
+        if (!localStorage.getItem('lottery_settings')) {
+            localStorage.setItem('lottery_settings', JSON.stringify(DEFAULT_SETTINGS));
+        }
+        if (!localStorage.getItem('lottery_prizes')) {
+            localStorage.setItem('lottery_prizes', JSON.stringify(DEFAULT_PRIZES));
+        }
+
+        // 模擬後端資料庫操作介面
+        const localDB = {
+            getSettings: () => JSON.parse(localStorage.getItem('lottery_settings')),
+            saveSettings: (s) => localStorage.setItem('lottery_settings', JSON.stringify(s)),
+            getPrizes: () => JSON.parse(localStorage.getItem('lottery_prizes')),
+            savePrizes: (p) => localStorage.setItem('lottery_prizes', JSON.stringify(p)),
+            
+            login: (u, p) => {
+                const settings = localDB.getSettings();
+                const isValid = settings.find(x => x.user === u && x.pass === p);
+                return isValid ? {success: true} : {success: false, message: '帳密錯誤'};
+            },
+            
+            changePassword: (u, oldP, newP) => {
+                let settings = localDB.getSettings();
+                let idx = settings.findIndex(x => x.user === u && x.pass === oldP);
+                if(idx !== -1) { 
+                    settings[idx].pass = newP; 
+                    localDB.saveSettings(settings);
+                    return {success: true}; 
+                }
+                return {success: false, message: '原密碼錯誤'};
+            },
+            
+            drawLot: () => {
+                let prizes = localDB.getPrizes();
+                let avail = prizes.filter(p => p.limit > p.drawn);
+                if(avail.length === 0) return {success: true, finished: true, message: '所有獎項已抽完！'};
+                
+                // 隨機抽選
+                let winIndex = Math.floor(Math.random() * avail.length);
+                let winPrize = avail[winIndex];
+                
+                // 寫入本地紀錄
+                let prizeInDb = prizes.find(p => p.id === winPrize.id);
+                prizeInDb.drawn++;
+                localDB.savePrizes(prizes);
+                
+                return {success: true, finished: false, prize: winPrize.name};
+            },
+            
+            clearRecords: () => { 
+                let prizes = localDB.getPrizes();
+                prizes.forEach(p => p.drawn = 0); 
+                localDB.savePrizes(prizes);
+                return {success: true}; 
+            }
+        };
+
+        let currentView = 'home';
+        let isAdmin = false;
+        let currentUser = '';
+        let prizesState = [];
+
+        window.onload = () => {
+            showView('home');
+            refreshPrizes();
+        };
+
+        function showView(view) {
+            currentView = view;
+            ['view-home', 'view-login', 'view-admin'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                document.getElementById(id).classList.remove('flex');
+            });
+            
+            const target = document.getElementById(`view-${view}`);
+            target.classList.remove('hidden');
+            target.classList.add('flex');
+            
+            const navBtn = document.getElementById('nav-login-btn');
+            if (isAdmin) {
+                navBtn.textContent = '登出';
+                navBtn.onclick = () => { isAdmin = false; showView('home'); showToast('已登出'); };
+            } else {
+                navBtn.textContent = '管理員登入';
+                navBtn.onclick = () => showView(currentView === 'home' ? 'login' : 'home');
+            }
+        }
+
+        function showToast(msg, type = 'info') {
+            const t = document.createElement('div');
+            t.className = `fixed bottom-8 left-1/2 -translate-x-1/2 px-8 py-4 rounded-2xl border-4 border-slate-800 shadow-[4px_4px_0_#1e293b] transition-all duration-300 z-50 transform translate-y-20 opacity-0 text-lg tracking-widest text-white ${type==='error'?'bg-red-500':'bg-slate-700'}`;
+            t.textContent = msg;
+            document.body.appendChild(t);
+            
+            setTimeout(() => { t.classList.remove('translate-y-20', 'opacity-0'); }, 10);
+            setTimeout(() => {
+                t.classList.add('opacity-0', 'translate-y-10');
+                setTimeout(() => t.remove(), 300);
+            }, 3000);
+        }
+
+        function refreshPrizes() {
+            prizesState = localDB.getPrizes();
+            renderPrizePool();
+            if(isAdmin) renderAdminPrizes();
+        }
+
+        function renderPrizePool() {
+            const container = document.getElementById('prize-pool');
+            container.innerHTML = '';
+            
+            if (prizesState.length === 0) {
+                container.innerHTML = `<div class="col-span-full text-center text-slate-400 py-8 text-xl border-4 border-dashed border-slate-200 rounded-3xl">空空如也，請村長放點獎品吧！</div>`;
+                return;
+            }
+
+            prizesState.forEach((p, index) => {
+                const remain = p.limit - p.drawn;
+                const isOut = remain <= 0;
+                
+                const rot = (index % 2 === 0 ? 1 : -1) * (Math.random() * 2 + 1);
+                const colors = ['border-blue-400', 'border-green-400', 'border-purple-400', 'border-orange-400'];
+                const colorClass = colors[index % colors.length];
+                
+                const div = document.createElement('div');
+                div.className = `bg-white rounded-3xl p-5 flex flex-col justify-center items-center text-center transition-all border-[4px] ${isOut ? 'border-slate-200 opacity-60 bg-slate-50 grayscale' : `${colorClass} shadow-[4px_4px_0_#94a3b8] hover:-translate-y-2`}`;
+                div.style.transform = isOut ? '' : `rotate(${rot}deg)`;
+                
+                div.innerHTML = `
+                    <div class="text-4xl mb-2">${isOut ? '💨' : '🎁'}</div>
+                    <span class="text-xl mb-3 tracking-widest ${isOut ? 'text-slate-400 line-through' : 'text-slate-700'}">${p.name}</span>
+                    <span class="text-base tracking-widest px-4 py-1.5 rounded-xl border-2 ${isOut ? 'bg-slate-200 text-slate-500 border-slate-300' : 'bg-yellow-100 text-yellow-700 border-yellow-300'}">
+                        還剩 ${remain} 個
+                    </span>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        document.getElementById('draw-btn').addEventListener('click', async function() {
+            const btn = this;
+            btn.disabled = true;
+            btn.classList.add('drawing-active');
+            btn.innerHTML = '<span class="text-6xl animate-spin text-white drop-shadow-md">⏳</span>';
+            
+            // 模擬抽獎特效的等待時間
+            await new Promise(r => setTimeout(r, 1000));
+            
+            const res = localDB.drawLot();
+            
+            btn.classList.remove('drawing-active');
+            btn.innerHTML = '抽獎囉!';
+            
+            if (!res.success) {
+                showToast(res.message, 'error');
+            } else if (res.finished) {
+                showResultModal('很遺憾，所有獎項已抽完！', '😢');
+            } else {
+                showResultModal(`恭喜獲得：\n${res.prize}`, '🎉');
+            }
+            refreshPrizes();
+            btn.disabled = false;
+        });
+
+        function showResultModal(text, emoji) {
+            const modal = document.getElementById('result-modal');
+            const box = document.getElementById('result-modal-box');
+            
+            document.getElementById('result-text').innerHTML = text.replace('\n', '<br>');
+            document.getElementById('result-icon').innerText = emoji;
+            
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                box.classList.remove('scale-50');
+                box.classList.add('scale-100');
+                box.style.transform = 'scale(1.05) rotate(2deg)';
+                setTimeout(() => box.style.transform = 'scale(1) rotate(0deg)', 200);
+            }, 10);
+        }
+
+        window.closeModal = function() {
+            const modal = document.getElementById('result-modal');
+            const box = document.getElementById('result-modal-box');
+            modal.classList.add('opacity-0');
+            box.style.transform = 'scale(0.5)';
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        window.handleLogin = function() {
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            
+            if(!u || !p) return showToast('請輸入帳號密碼', 'error');
+            
+            const res = localDB.login(u, p);
+            if(res.success) {
+                isAdmin = true; currentUser = u;
+                document.getElementById('login-pass').value = '';
+                showToast('登入成功');
+                showView('admin');
+                refreshPrizes();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+
+        function renderAdminPrizes() {
+            const tbody = document.getElementById('admin-prizes-tbody');
+            tbody.innerHTML = '';
+            
+            prizesState.forEach((p, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b-4 border-slate-100 hover:bg-slate-100 transition-colors group';
+                
+                const createInputCell = (val, type, updateFn) => {
+                    const td = document.createElement('td');
+                    td.className = 'p-3';
+                    const input = document.createElement('input');
+                    input.type = type;
+                    input.value = val;
+                    input.min = type === 'number' ? '1' : '';
+                    input.className = 'w-full border-2 border-slate-300 rounded-xl p-2 text-base tracking-widest focus:border-blue-500 focus:bg-blue-50 outline-none bg-white transition-colors';
+                    input.onchange = (e) => updateFn(e.target.value);
+                    td.appendChild(input);
+                    return td;
+                };
+
+                tr.appendChild(createInputCell(p.id, 'text', (v) => p.id = v));
+                tr.appendChild(createInputCell(p.name, 'text', (v) => p.name = v));
+                tr.appendChild(createInputCell(p.limit, 'number', (v) => p.limit = parseInt(v)||0));
+                
+                const tdDrawn = document.createElement('td');
+                tdDrawn.className = 'p-3 text-center text-slate-800 text-xl tracking-widest';
+                tdDrawn.textContent = p.drawn;
+                tr.appendChild(tdDrawn);
+
+                const tdAction = document.createElement('td');
+                tdAction.className = 'p-3 text-center';
+                const delBtn = document.createElement('button');
+                delBtn.innerHTML = '🗑️ 丟掉';
+                delBtn.className = 'text-red-500 hover:text-white hover:bg-red-500 border-2 border-transparent hover:border-red-600 px-3 py-2 rounded-xl transition-all text-sm shadow-sm tracking-widest';
+                delBtn.onclick = () => { prizesState.splice(index, 1); renderAdminPrizes(); };
+                tdAction.appendChild(delBtn);
+                tr.appendChild(tdAction);
+
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.addPrize = function() {
+            const newId = 'P' + Date.now().toString().slice(-4);
+            prizesState.push({ id: newId, name: '神秘新禮物', limit: 1, drawn: 0 });
+            renderAdminPrizes();
+        };
+
+        window.savePrizes = function() {
+            localDB.savePrizes(prizesState);
+            showToast('獎項設定已儲存');
+            refreshPrizes();
+        };
+
+        window.changePassword = function() {
+            const oldPw = document.getElementById('old-pw').value;
+            const newPw = document.getElementById('new-pw').value;
+            if(!oldPw || !newPw) return showToast('密碼欄位不可為空', 'error');
+            
+            const res = localDB.changePassword(currentUser, oldPw, newPw);
+            if(res.success) {
+                showToast('密碼修改成功');
+                document.getElementById('old-pw').value = '';
+                document.getElementById('new-pw').value = '';
+            } else { 
+                showToast(res.message, 'error'); 
+            }
+        };
+
+        window.confirmReset = function() {
+            document.getElementById('confirm-modal').classList.add('hidden');
+            localDB.clearRecords();
+            showToast('紀錄已清除，抽籤次數已歸零');
+            refreshPrizes();
+        };
+    </script>
+</body>
+</html>
